@@ -4,11 +4,13 @@ import '../models/baggage_event.dart';
 
 class BaggageEventRemoteService {
   CollectionReference<Map<String, dynamic>> get _coleccion =>
-      FirebaseFirestore.instance.collection('baggageEvent');
+      FirebaseFirestore.instance.collection('baggage_events');
 
   Future<List<BaggageEvent>> getEvents() async {
     final snapshot =
-        await _coleccion.get().timeout(const Duration(seconds: 10));
+        await _coleccion
+        .get(const GetOptions(source: Source.server))
+        .timeout(const Duration(seconds: 10));
     final events = <BaggageEvent>[];
     for (final doc in snapshot.docs) {
       final event = _fromDoc(doc.id, doc.data());
@@ -32,18 +34,25 @@ class BaggageEventRemoteService {
     );
   }
 
+  /// Guarda el evento como un documento independiente. Se usa una transacción
+  /// para que falle si no hay conexión (en vez de quedar en cola y enviarse
+  /// después), así la app no confirma un evento que no llegó al servidor.
   Future<void> saveEvent(BaggageEvent event) {
-    return _coleccion.doc(event.id).set({
-      'baggageId': event.baggageId,
-      'type': event.type,
-      'createdAt': Timestamp.fromDate(event.createdAt),
+    final doc = _coleccion.doc(event.id);
+    return FirebaseFirestore.instance.runTransaction((tx) async {
+      tx.set(doc, {
+        'id': event.id,
+        'baggageId': event.baggageId,
+        'type': event.type,
+        'createdAt': Timestamp.fromDate(event.createdAt),
+      });
     }).timeout(const Duration(seconds: 10));
   }
 
   Future<List<BaggageEvent>> getBaggageId(String baggageId) async {
     final snapshot = await _coleccion
         .where('baggageId', isEqualTo: baggageId)
-        .get()
+        .get(const GetOptions(source: Source.server))
         .timeout(const Duration(seconds: 10));
     final events = <BaggageEvent>[];
     for (final doc in snapshot.docs) {

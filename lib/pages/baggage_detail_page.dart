@@ -1,180 +1,158 @@
 import 'package:flutter/material.dart';
 
 import '../models/baggage.dart';
+import '../models/baggage_event.dart';
+import '../models/event_labels.dart';
+import '../repositories/baggage_event_repository.dart';
 
-class BaggageDetailPage extends StatelessWidget {
-  const BaggageDetailPage({
+class BaggageDetailPage extends StatefulWidget {
+  BaggageDetailPage({
     super.key,
     required this.baggage,
-  });
+    BaggageEventRepository? repository,
+  }) : repository = repository ?? BaggageEventRepository();
 
   final Baggage baggage;
+  final BaggageEventRepository repository;
 
-  void _showPendingMessage(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Funcionalidad a implementar durante el examen.'),
-      ),
-    );
+  @override
+  State<BaggageDetailPage> createState() => _BaggageDetailPageState();
+}
+
+class _BaggageDetailPageState extends State<BaggageDetailPage> {
+  List<BaggageEvent> _events = [];
+  bool _loading = true;
+  bool _fromLocal = false;
+  bool _registering = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents();
+  }
+
+  Future<void> _loadEvents() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final result =
+          await widget.repository.getEventsForBaggage(widget.baggage.id);
+      if (!mounted) return;
+      setState(() {
+        _events = result.events; // más reciente primero
+        _fromLocal = result.fromLocal;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = 'No se pudieron cargar los eventos');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _registerNext() async {
+    setState(() => _registering = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final event =
+          await widget.repository.registerNextEvent(widget.baggage.id);
+      await _loadEvents();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Evento registrado: ${eventLabel(event.type)}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('No se pudo registrar el evento: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _registering = false);
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(date.day)}/${two(date.month)}/${date.year} '
+        '${two(date.hour)}:${two(date.minute)}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final baggage = widget.baggage;
+    final last = _events.isEmpty ? null : _events.first;
+    final next = BaggageEventRepository.nextEventType(_events);
+
     return Scaffold(
       appBar: AppBar(title: Text(baggage.id)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _BaggageHeader(baggage: baggage),
-          const SizedBox(height: 24),
-          Text(
-            'Historial de eventos',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 14),
-          const _EmptyHistory(),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: () => _showPendingMessage(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Registrar primer evento'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BaggageHeader extends StatelessWidget {
-  const _BaggageHeader({required this.baggage});
-
-  final Baggage baggage;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primaryContainer,
-                  child: Icon(
-                    Icons.luggage,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        baggage.id,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Chip(label: Text('Sin eventos')),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 28),
-            Row(
-              children: [
-                Expanded(
-                  child: _InfoField(
-                    label: 'Pasajero',
-                    value: baggage.passenger,
-                  ),
-                ),
-                Expanded(
-                  child: _InfoField(
-                    label: 'Vuelo',
-                    value: baggage.flight,
-                  ),
-                ),
-                Expanded(
-                  child: _InfoField(
-                    label: 'Destino',
-                    value: baggage.destination,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoField extends StatelessWidget {
-  const _InfoField({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-      ],
-    );
-  }
-}
-
-class _EmptyHistory extends StatelessWidget {
-  const _EmptyHistory();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 34),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.history,
-            size: 48,
-            color: Theme.of(context).colorScheme.outline,
-          ),
+          Text('Pasajero: ${baggage.passenger}'),
+          Text('Vuelo: ${baggage.flight}'),
+          Text('Destino: ${baggage.destination}'),
           const SizedBox(height: 12),
           Text(
-            'Este equipaje aun no tiene eventos.',
-            style: Theme.of(context).textTheme.bodyLarge,
-            textAlign: TextAlign.center,
+            'Estado actual: ${last == null ? 'Sin eventos' : eventLabel(last.type)}',
+          ),
+          if (last != null) ...[
+            Text('Última actualización: ${_formatDate(last.createdAt)}'),
+            Text('Total de eventos: ${_events.length}'),
+          ],
+          if (_fromLocal && !_loading && _error == null) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Sin conexión con el servidor. Mostrando datos locales.',
+            ),
+          ],
+          const Divider(height: 32),
+          const Text('Historial de eventos'),
+          const SizedBox(height: 8),
+          _buildHistory(),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: (_loading || _registering || _error != null || next == null)
+                ? null
+                : _registerNext,
+            child: Text(
+              next == null
+                  ? 'Recorrido finalizado'
+                  : 'Registrar ${eventLabel(next)}',
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHistory() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Column(
+        children: [
+          Text(_error!),
+          TextButton(onPressed: _loadEvents, child: const Text('Reintentar')),
+        ],
+      );
+    }
+
+    if (_events.isEmpty) {
+      return const Text('Este equipaje aún no tiene eventos.');
+    }
+
+    return Column(
+      children: [
+        for (final event in _events)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(eventLabel(event.type)),
+            subtitle: Text(_formatDate(event.createdAt)),
+          ),
+      ],
     );
   }
 }
