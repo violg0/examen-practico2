@@ -40,10 +40,16 @@ class BaggageEventRemoteService {
     }).timeout(const Duration(seconds: 10));
   }
 
-  Future<String?> getBaggageId(BaggageEvent event) async {
-    final doc =
-        await _coleccion.doc(event.id).get().timeout(const Duration(seconds: 10));
-    final baggageId = doc.data()?['baggageId'];
-    return baggageId is String ? baggageId : null;
+  Future<List<BaggageEvent>> getBaggageId(String baggageId) async {
+    final snapshot = await _coleccion
+        .where('baggageId', isEqualTo: baggageId)
+        .get()
+        .timeout(const Duration(seconds: 10));
+    final events = <BaggageEvent>[];
+    for (final doc in snapshot.docs) {
+      final event = _fromDoc(doc.id, doc.data());
+      if (event != null) events.add(event);
+    }
+    return events;
   }
 }
