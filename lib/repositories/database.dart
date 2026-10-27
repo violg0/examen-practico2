@@ -5,13 +5,11 @@ part 'database.g.dart';
 
 @DataClassName('BaggageEvents')
 class BaggageEvente extends Table {
-  IntColumn get id => integer().autoIncrement()();
+  TextColumn get id => text()();
 
-  IntColumn get baggageId => string()();
+  TextColumn get baggageId => text()();
 
-  IntColumn get type => integer()
-      .withDefault(const Constant(1))
-      .check(priority.isBetweenValues(1, 5))();
+  TextColumn get type => text()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
@@ -24,10 +22,10 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    beforeOpen: (details) async {
-      await customStatement('PRAGMA foreign_keys = ON');
-    },
-  );
+        beforeOpen: (details) async {
+          await customStatement('PRAGMA foreign_keys = ON');
+        },
+      );
 }
 
 final db = AppDatabase(); // aqui esta el appdatabase
