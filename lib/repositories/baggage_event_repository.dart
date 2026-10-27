@@ -2,7 +2,8 @@ import '../models/baggage_event.dart';
 import '../services/baggage_event_local_service.dart';
 import '../services/baggage_event_remote_service.dart';
 
-enum typo { CHEKED_IN, SECURITY, LOADED, IN_TRANSIT,DELIVERED}
+Map<String, int> mapeo = {"CHEKED_IN": 0, "SECURITY": 1, "LOADED": 2, "IN_TRANSIT": 3, "DELIVERED": 4}
+
 /// Punto de inicio para coordinar las fuentes de datos del examen.
 class BaggageEventRepository {
   BaggageEventRemoteService remoteRepository = BaggageEventRemoteService();
@@ -21,7 +22,7 @@ class BaggageEventRepository {
       return respuesta;
     }
     //Si Firestore falla, recuperar los últimos eventos disponibles desde Drift y permitir que la aplicación continúe mostrando el último estado conocido.
-    respuesta = localRepository.obtenerPorEquipaje(baggageId);
+    respuesta = localRepository.obtenerPoridequipaje(baggageId);
     return respuesta;
   }
 
@@ -32,9 +33,14 @@ transición es válida, el evento debe guardarse remotamente en Firestore y desp
 para conservar el estado local. Si la escritura remota falla, la aplicación debe informar el error y no presentar el
 evento como confirmado.*/
 
-    final actuales = await this.getEventsForBaggage(event.baggageId);
+    var actuales = await localRepository.obtenerPoridequipaje(event.baggageId);
     if (actuales == null) {
-      if()
+      if (mapeo[event.type] != 0) {
+        throw Error();
+      }
+    }
+    if(mapeo[event.type]  - actuales.removeLast() > 2){
+      throw Error();
     }
   }
 }
