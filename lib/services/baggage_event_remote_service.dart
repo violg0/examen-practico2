@@ -11,21 +11,25 @@ class BaggageEventRemoteService {
         await _coleccion.get().timeout(const Duration(seconds: 10));
     final events = <BaggageEvent>[];
     for (final doc in snapshot.docs) {
-      final data = doc.data();
-      final baggageId = data['baggageId'];
-      final type = data['type'];
-      final createdAt = data['createdAt'];
-      if (baggageId is! String || type is! String || createdAt is! Timestamp) {
-        continue;
-      }
-      events.add(BaggageEvent(
-        id: doc.id,
-        baggageId: baggageId,
-        type: type,
-        createdAt: createdAt.toDate(),
-      ));
+      final event = _fromDoc(doc.id, doc.data());
+      if (event != null) events.add(event);
     }
     return events;
+  }
+
+  BaggageEvent? _fromDoc(String id, Map<String, dynamic> data) {
+    final baggageId = data['baggageId'];
+    final type = data['type'];
+    final createdAt = data['createdAt'];
+    if (baggageId is! String || type is! String || createdAt is! Timestamp) {
+      return null;
+    }
+    return BaggageEvent(
+      id: id,
+      baggageId: baggageId,
+      type: type,
+      createdAt: createdAt.toDate(),
+    );
   }
 
   Future<void> saveEvent(BaggageEvent event) {
@@ -35,7 +39,11 @@ class BaggageEventRemoteService {
       'createdAt': Timestamp.fromDate(event.createdAt),
     }).timeout(const Duration(seconds: 10));
   }
+
+  Future<String?> getBaggageId(BaggageEvent event) async {
+    final doc =
+        await _coleccion.doc(event.id).get().timeout(const Duration(seconds: 10));
+    final baggageId = doc.data()?['baggageId'];
+    return baggageId is String ? baggageId : null;
+  }
 }
-
-
-
