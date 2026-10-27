@@ -1,16 +1,41 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../models/baggage_event.dart';
 
-/// Punto de inicio para la fuente remota.
-///
-/// La shell no incluye Firebase ni Cloud Firestore como dependencias.
 class BaggageEventRemoteService {
+  CollectionReference<Map<String, dynamic>> get _coleccion =>
+      FirebaseFirestore.instance.collection('baggageEvent');
+
   Future<List<BaggageEvent>> getEvents() async {
-    // TODO: implementar lectura remota.
-    throw UnimplementedError();
+    final snapshot =
+        await _coleccion.get().timeout(const Duration(seconds: 10));
+    final events = <BaggageEvent>[];
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final baggageId = data['baggageId'];
+      final type = data['type'];
+      final createdAt = data['createdAt'];
+      if (baggageId is! String || type is! String || createdAt is! Timestamp) {
+        continue;
+      }
+      events.add(BaggageEvent(
+        id: doc.id,
+        baggageId: baggageId,
+        type: type,
+        createdAt: createdAt.toDate(),
+      ));
+    }
+    return events;
   }
 
-  Future<void> saveEvent(BaggageEvent event) async {
-    // TODO: implementar escritura remota.
-    throw UnimplementedError();
+  Future<void> saveEvent(BaggageEvent event) {
+    return _coleccion.doc(event.id).set({
+      'baggageId': event.baggageId,
+      'type': event.type,
+      'createdAt': Timestamp.fromDate(event.createdAt),
+    }).timeout(const Duration(seconds: 10));
   }
 }
+
+
+
